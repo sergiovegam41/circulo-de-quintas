@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Círculo de quintas con piezas intercambiables para ver escalas, acordes por grado y transportar progresiones.">
+<meta name="theme-color" content="#E6EAED" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1318" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Rueda de Quintas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: the wheel is the instrument (left, sticky); a working panel sits beside it and stacks below on phones.
+   The piece is a colored "gel" card with windows cut out, laid over a printed wheel. */
+:root{
+  --bg:#E6EAED; --surface:#F6F8F9; --ink:#17202B; --muted:#5B6773; --line:#C3CCD3;
+  --ringN:#EDF1F3; --ringM:#FBFCFD; --ringm:#F0F3F5; --ringd:#E3E8EC; --veil:#DCE2E6;
+  --piece:#C9730F;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1318; --surface:#171C23; --ink:#E4E9EE; --muted:#8C97A3; --line:#2C343E;
+    --ringN:#141920; --ringM:#1E242C; --ringm:#191F26; --ringd:#141920; --veil:#0A0D11;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1318; --surface:#171C23; --ink:#E4E9EE; --muted:#8C97A3; --line:#2C343E;
+  --ringN:#141920; --ringM:#1E242C; --ringm:#191F26; --ringd:#141920; --veil:#0A0D11;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1240px;margin:0 auto;padding-block:28px 56px;padding-inline:20px}
+header{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px 24px;margin-bottom:20px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(28px,4vw,42px);line-height:1.05;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.lede{margin:6px 0 0;color:var(--muted);max-width:62ch}
+.toggle{display:inline-flex;border:1px solid var(--line);border-radius:999px;background:var(--surface);padding:3px}
+.toggle button{border:0;background:transparent;color:var(--muted);font:500 13px var(--f-body);padding:5px 12px;border-radius:999px;cursor:pointer}
+.toggle button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+
+.app{display:grid;gap:28px}
+@media (min-width:960px){
+  .app{grid-template-columns:minmax(0,1.08fr) minmax(0,1fr);align-items:start}
+  .stage{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px)}
+}
+.stage{min-width:0}
+#wheel{display:block;width:100%;max-width:620px;aspect-ratio:1;margin:0 auto;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#wheel.dragging{cursor:grabbing}
+#wheel:focus-visible{outline:2px solid var(--piece);outline-offset:4px;border-radius:50%}
+.cell-N{fill:var(--ringN)} .cell-M{fill:var(--ringM)} .cell-m{fill:var(--ringm)} .cell-d{fill:var(--ringd)}
+.cell{stroke:var(--line);stroke-width:1}
+.hub{fill:var(--surface);stroke:var(--line)}
+.lab{fill:var(--ink);text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.lab-M{font:600 17px var(--f-display)} .lab-M.two{font-size:13px}
+.lab-m{font:500 14px var(--f-display)} .lab-m.two{font-size:11px}
+.lab-d{font:500 12px var(--f-display);fill:var(--muted)} .lab-d.two{font-size:9.5px}
+.lab-N{font:500 12px var(--f-body);fill:var(--muted)} .lab-N.two{font-size:9.5px}
+.tick{fill:var(--line)}
+.veil{fill:var(--veil);opacity:.8}
+.win{fill:var(--piece);fill-opacity:.14;stroke:var(--piece);stroke-width:2.5}
+.win.tonic{fill-opacity:.32}
+.rim{fill:none;stroke:var(--piece);stroke-width:3}
+.handle{fill:var(--piece)}
+.pill rect,.pill circle{fill:var(--surface);stroke:var(--piece);stroke-width:1.5}
+.pill text{fill:var(--piece);font:600 12px var(--f-mono);text-anchor:middle;dominant-baseline:central}
+.pill.tonic rect,.pill.tonic circle{fill:var(--piece)}
+.pill.tonic text{fill:#fff}
+.pill .wname.lab{fill:var(--ink)}
+.pill .wname.lab-N{font:600 12px var(--f-body)}
+.pill .wname.lab-M{font:700 17px var(--f-display)}
+.pill .wname.lab-m{font:600 14px var(--f-display)}
+.pill .wname.lab-d{font:600 12px var(--f-display)}
+
+.hub-key{fill:var(--ink);font:700 40px var(--f-display);text-anchor:middle;dominant-baseline:central}
+.hub-mode{fill:var(--piece);font:600 14px var(--f-body);text-anchor:middle;dominant-baseline:central}
+.hub-sub{fill:var(--muted);font:500 10px var(--f-mono);text-anchor:middle;letter-spacing:.12em}
+#pieceG.swap{animation:swap .35s ease-out}
+@keyframes swap{from{opacity:0}to{opacity:1}}
+
+.controls{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:14px}
+.btn{font:500 14px var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--piece)}
+.btn:focus-visible,.piece:focus-visible,.chip:focus-visible,input:focus-visible{outline:2px solid var(--piece);outline-offset:2px}
+.btn.main{background:var(--piece);border-color:var(--piece);color:#fff;font-weight:600}
+.btn small{font-family:var(--f-mono);font-size:11px;opacity:.75}
+.hint{text-align:center;color:var(--muted);font-size:13px;margin:10px 0 0}
+
+.panel{display:grid;gap:26px;min-width:0}
+.block h2{font:600 12px var(--f-body);text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:0 0 10px}
+.pieces{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:8px}
+.piece{display:flex;align-items:center;gap:10px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;color:var(--ink);font-family:var(--f-body)}
+.piece svg{flex:none;width:42px;height:42px}
+.piece b{display:block;font:600 14px var(--f-display);line-height:1.2}
+.piece span{display:block;font:500 11px var(--f-mono);color:var(--muted);line-height:1.3}
+.piece[aria-pressed="true"]{border-color:var(--c);box-shadow:inset 0 0 0 1.5px var(--c)}
+.piece-note{margin:10px 0 0;color:var(--muted);font-size:13.5px}
+
+.notes{display:flex;flex-wrap:wrap;gap:6px}
+.note{min-width:48px;text-align:center;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:5px 8px}
+.note b{display:block;font:600 16px var(--f-display)}
+.note span{display:block;font:500 11px var(--f-mono);color:var(--piece)}
+.note.tonic{border-color:var(--piece)}
+
+.chords{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+@media (max-width:560px){.chords{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.chip{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 4px;cursor:pointer;color:var(--ink);text-align:center;min-width:0}
+.chip .num{display:block;font:600 12px var(--f-mono);color:var(--piece)}
+.chip .ch{display:block;font:600 17px var(--f-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip .tag{display:block;font:500 10px var(--f-body);color:var(--muted)}
+.chip.tonic{background:var(--piece);border-color:var(--piece);color:#fff}
+.chip.tonic .num{color:#fff}
+.chip.off{border-style:dashed}
+.chip:hover{border-color:var(--piece)}
+
+.prog input{width:100%;font:500 16px var(--f-mono);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.examples{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+.examples button{font:500 12px var(--f-mono);color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:999px;padding:3px 10px;cursor:pointer}
+.examples button:hover{color:var(--ink);border-color:var(--piece)}
+.out{display:flex;flex-wrap:wrap;gap:6px}
+.out .chip{min-width:64px;padding:8px 10px}
+.out .err{color:var(--muted);font-size:13px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;color:var(--muted);font-size:12.5px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid var(--line);vertical-align:-2px;margin-right:5px}
+@media (prefers-reduced-motion:reduce){#pieceG.swap{animation:none}}
+button,input,#wheel{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+#wheel{touch-action:none}
+.kbd{display:inline}
+@media (pointer:coarse){.kbd{display:none}}
+/* Phone: bigger wheel labels, full-bleed wheel, rotation bar pinned to the bottom */
+@media (max-width:600px){
+  .wrap{padding-inline:16px;padding-block:18px 120px}
+  h1{font-size:30px}
+  .lede{font-size:14px}
+  #wheel{width:calc(100% + 20px);max-width:none;margin-inline:-10px}
+  .lab-M{font-size:22px} .lab-M.two{font-size:16px}
+  .lab-m{font-size:18px} .lab-m.two{font-size:13px}
+  .lab-d{font-size:15px} .lab-d.two{font-size:11px}
+  .lab-N{font-size:14px} .lab-N.two{font-size:11px}
+  .pill .wname.lab-N{font-size:14px} .pill .wname.lab-M{font-size:22px} .pill .wname.lab-m{font-size:18px} .pill .wname.lab-d{font-size:15px}
+  .pill text{font-size:14px}
+  .hub-key{font-size:48px} .hub-mode{font-size:17px} .hub-sub{font-size:12px}
+  .controls{position:fixed;left:0;right:0;bottom:0;z-index:5;margin:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--line);flex-wrap:nowrap;gap:6px;box-shadow:0 -6px 20px rgba(0,0,0,.08)}
+  .controls .btn{flex:1 1 0;justify-content:center;padding:11px 6px;font-size:15px;min-width:0}
+  .controls .btn.main{flex:1.3 1 0}
+  .hint{font-size:12.5px}
+  .notes{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+  .note{min-width:0;padding:5px 2px}
+  .note b{font-size:15px}
+  .pieces{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .piece{flex-direction:column;align-items:center;text-align:center;gap:4px;padding:8px 4px}
+  .piece b{font-size:13px}
+  .piece span{font-size:10px}
+  .examples{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;margin-inline:-16px;padding-inline:16px;scrollbar-width:none}
+  .examples button{flex:none;padding:6px 12px;font-size:13px}
+}
+</style>
+<style>html{color-scheme:light}@media (prefers-color-scheme: dark){html{color-scheme:dark}}body{margin:0;padding-top:env(safe-area-inset-top,0px)}[hidden]{display:none!important}</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Rueda de Quintas</h1>
+      <p class="lede">Coloca una pieza sobre el círculo: sus ventanas muestran la escala y los acordes que le pertenecen. Gírala para cambiar de tónica; cámbiala para cambiar de escala.</p>
+    </div>
+    <div class="toggle" role="group" aria-label="Notación">
+      <button id="nSol" type="button">Do Re Mi</button>
+      <button id="nAbc" type="button">C D E</button>
+    </div>
+  </header>
+
+  <div class="app">
+    <section class="stage" aria-label="Círculo de quintas">
+      <svg id="wheel" viewBox="-4 -4 608 608" tabindex="0" role="img" aria-label="Círculo de quintas con la pieza colocada">
+        <defs>
+          <mask id="hole" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="600">
+            <rect width="600" height="600" fill="#fff"/>
+            <g id="maskCells" fill="#000"></g>
+            <circle cx="300" cy="300" r="92" fill="#000"/>
+          </mask>
+        </defs>
+        <g id="static"></g>
+        <g id="staticLab" mask="url(#hole)"></g>
+        <circle class="veil" cx="300" cy="300" r="292" mask="url(#hole)"/>
+        <g id="pieceG"></g>
+        <g id="hub"></g>
+      </svg>
+      <div class="controls">
+        <button class="btn" id="semiDown" type="button" title="Bajar medio tono"><small>−½</small> tono</button>
+        <button class="btn main" id="rotL" type="button" title="Girar la pieza una posición a la izquierda">↺ <span id="rotLName"></span></button>
+        <button class="btn main" id="rotR" type="button" title="Girar la pieza una posición a la derecha"><span id="rotRName"></span> ↻</button>
+        <button class="btn" id="semiUp" type="button" title="Subir medio tono"><small>+½</small> tono</button>
+      </div>
+      <p class="hint">Arrastra la pieza para girarla, toca cualquier nota o acorde para llevar la tónica allí<span class="kbd">, o usa ← →</span>.</p>
+    </section>
+
+    <section class="panel">
+      <div class="block">
+        <h2>Pieza</h2>
+        <div class="pieces" id="pieces"></div>
+        <p class="piece-note" id="pieceNote"></p>
+      </div>
+      <div class="block">
+        <h2 id="scaleTitle">Escala</h2>
+        <div class="notes" id="notes"></div>
+      </div>
+      <div class="block">
+        <h2>Acordes de la escala <span style="text-transform:none;letter-spacing:0;font-weight:400">· toca para escuchar</span></h2>
+        <div class="chords" id="chords"></div>
+      </div>
+      <div class="block prog">
+        <h2><label for="progIn">Transportar una progresión por grados</label></h2>
+        <input id="progIn" type="text" spellcheck="false" autocomplete="off" value="I V vi IV">
+        <div class="examples" id="examples"></div>
+        <div class="out" id="progOut"></div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--ringN)"></i>Anillo exterior: notas y su grado (1, 2, ♭3…)</span>
+        <span><i style="background:var(--ringM)"></i>Acordes mayores</span>
+        <span><i style="background:var(--ringm)"></i>Menores</span>
+        <span><i style="background:var(--ringd)"></i>Disminuidos</span>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+const C=300, R={N:[250,292],M:[194,246],m:[142,194],d:[96,142]}, HUB=90;
+// Layout per ring: cell center radius, name offset, two-line offsets, grade-pill offset (screen-space, so text stays upright and never collides)
+const LAY={N:{rc:271,one:-9,two:[-16,-6],pill:10},M:{rc:220,one:-10,two:[-17,-4],pill:13},m:{rc:168,one:-9,two:[-15,-4],pill:12},d:{rc:119,one:-8,two:[-14,-5],pill:10}};
+const LET=['C','D','E','F','G','A','B'], NAT=[0,2,4,5,7,9,11], MAJ=NAT;
+const SOL={C:'Do',D:'Re',E:'Mi',F:'Fa',G:'Sol',A:'La',B:'Si'};
+const ROM=['I','II','III','IV','V','VI','VII'];
+const mod=(a,n)=>((a%n)+n)%n;
+const f5=pc=>mod(pc*7,12);
+const pcAt=k=>mod(k*7,12);
+
+// Static circle labels in letter names (converted for solfège on render)
+const MAJ_L=['C','G','D','A','E','B','F♯/G♭','D♭','A♭','E♭','B♭','F'];
+const MIN_L=['A','E','B','F♯','C♯','G♯','D♯/E♭','B♭','F','C','G','D'];
+const DIM_L=['B','F♯','C♯','G♯','D♯','A♯','E♯/F','C','G','D','A','E'];
+
+const PIECES=[
+ {id:'mayor',name:'Mayor',sub:'y sus 7 modos',mode:'mayor',iv:[0,2,4,5,7,9,11],color:'#C9730F',note:'Dórico, frigio, lidio, mixolidio, menor natural (eólico) y locrio usan esta misma forma: solo cambia qué casilla tomas como centro. La menor natural es el vi; el dórico, el ii; el mixolidio, el V.'},
+ {id:'armonica',name:'Menor armónica',sub:'7ª elevada',mode:'menor armónica',iv:[0,2,3,5,7,8,11],sig:[0,2,3,5,7,8,10],color:'#B3303D',note:'Forma propia: al subir la 7ª aparecen un V mayor y un vii° que resuelven fuerte a la tónica. El ♭III+ aumentado no existe en el círculo; lo ves solo en la lista.'},
+ {id:'penta',name:'Pentatónica',sub:'mayor y menor',mode:'pentatónica',iv:[0,2,4,7,9],deg:[0,1,2,4,5],full:[0,2,4,5,7,9,11],chordsDef:[[0,'M'],[4,'m']],color:'#0E857A',note:'Cinco quintas seguidas: la escala mayor sin el 4 ni el 7, que son las notas del semitono. La pentatónica menor es la misma forma leída desde el 6. Solo I y vi tienen sus tres notas dentro; sobre los otros acordes de la tonalidad se usa como melodía.'}
+];
+const QS={M:'',m:'m',d:'°',A:'+'};
+function numeral(d,r,q){const acc=r-MAJ[d],pre=acc<0?'♭':acc>0?'♯':'';let n=ROM[d];if(q==='m'||q==='d')n=n.toLowerCase();return pre+n+(q==='d'?'°':q==='A'?'+':'');}
+const cellOf=(r,q)=> q==='M'?{ring:'M',off:f5(r)} : q==='m'?{ring:'m',off:f5(r+3)} : q==='d'?{ring:'d',off:f5(r+1)} : null;
+PIECES.forEach(p=>{
+  p.deg=p.deg||p.iv.map((_,i)=>i);
+  p.full=p.full||p.iv;
+  p.notes=p.iv.map((r,i)=>{const d=p.deg[i],acc=r-MAJ[d];return {r,d,lab:(acc<0?'♭':acc>0?'♯':'')+(d+1)};});
+  const defs=p.chordsDef||p.iv.map((r,d)=>{
+    const third=mod(p.iv[(d+2)%7]-r,12), fifth=mod(p.iv[(d+4)%7]-r,12);
+    return [d, third===4 ? (fifth===8?'A':'M') : (fifth===6?'d':'m')];
+  });
+  p.chords=defs.map(([n,q])=>{const r=p.iv[n],d=p.deg[n];return {n,d,r,q,num:numeral(d,r,q),cell:cellOf(r,q)};});
+});
+
+// ---------- state ----------
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+let notation=store.get('rq-notation')==='abc'?'abc':'sol';
+let pieceIdx=Math.max(0,PIECES.findIndex(p=>p.id===store.get('rq-piece')));
+let target=0, cur=0, raf=null, lastPos=null;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------- names ----------
+const accStr=a=>a===-2?'♭♭':a===-1?'♭':a===1?'♯':a===2?'♯♯':'';
+const letter=L=>notation==='sol'?SOL[L]:L;
+const conv=s=>s.split('/').map(x=>x.replace(/^[A-G]/,m=>letter(m)));
+// Spell a scale: pick the tonic letter whose key signature (sig) has fewest accidentals, then spell iv from it.
+function spellFrom(L,t,iv,deg){return iv.map((x,i)=>{const li=(L+(deg?deg[i]:i))%7, pc=mod(t+x,12), a=mod(pc-NAT[li]+6,12)-6; return {L:LET[li],acc:a,pc};});}
+// p = piece; full=true spells the 7-note parent scale (used for degrees in progressions)
+function spell(t,p,full){
+  const sig=p.sig||p.full;
+  const cands=[];
+  for(const a of [0,-1,1]) for(let L=0;L<7;L++) if(mod(NAT[L]+a,12)===t) cands.push(L);
+  let best=null;
+  for(const L of cands){
+    const score=spellFrom(L,t,sig).reduce((n,x)=>n+Math.abs(x.acc)+(Math.abs(x.acc)>1?10:0),0);
+    if(!best||score<best.score) best={score,L};
+  }
+  return full?spellFrom(best.L,t,p.full):spellFrom(best.L,t,p.iv,p.deg);
+}
+const nName=n=>letter(n.L)+accStr(n.acc);
+
+// ---------- geometry ----------
+const pt=(r,deg)=>{const a=deg*Math.PI/180;return [C+r*Math.sin(a),C-r*Math.cos(a)]};
+function sector(r1,r2,k){
+  const a0=k*30-15,a1=k*30+15,[x0,y0]=pt(r2,a0),[x1,y1]=pt(r2,a1),[x2,y2]=pt(r1,a1),[x3,y3]=pt(r1,a0);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r2} ${r2} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)}L${x2.toFixed(2)} ${y2.toFixed(2)}A${r1} ${r1} 0 0 0 ${x3.toFixed(2)} ${y3.toFixed(2)}Z`;
+}
+const $=id=>document.getElementById(id);
+const svg=$('wheel');
+
+function renderStatic(){
+  let s='';
+  for(let k=0;k<12;k++){
+    for(const ring of ['N','M','m','d']) s+=`<path class="cell cell-${ring}" d="${sector(R[ring][0],R[ring][1],k)}"/>`;
+  }
+  $('static').innerHTML=s+`<circle class="hub" cx="${C}" cy="${C}" r="${HUB}"/>`; s='';
+  for(let k=0;k<12;k++){
+    s+=lab(conv(MAJ_L[k]),'N',k);
+    s+=lab(conv(MAJ_L[k]),'M',k);
+    s+=lab(conv(MIN_L[k]).map(x=>x+'m'),'m',k);
+    s+=lab(conv(DIM_L[k]).map(x=>x+'°'),'d',k);
+  }
+  $('staticLab').innerHTML=s;
+}
+function lab(parts,ring,k){
+  const L=LAY[ring],[x,y]=pt(L.rc,k*30);
+  if(parts.length===1) return `<text class="lab lab-${ring}" x="${x.toFixed(1)}" y="${(y+L.one).toFixed(1)}">${parts[0]}</text>`;
+  return parts.map((p,i)=>`<text class="lab lab-${ring} two" x="${x.toFixed(1)}" y="${(y+L.two[i]).toFixed(1)}">${p}</text>`).join('');
+}
+
+// piece geometry (drawn with tonic at the top, then rotated as a rigid body)
+let pills=[];
+const mqBig=matchMedia('(max-width:600px)'); let BIG=mqBig.matches;
+mqBig.addEventListener&&mqBig.addEventListener('change',e=>{BIG=e.matches;renderPiece(false);lastPos=null;applyAngle(cur);});
+function renderPiece(animate){
+  const p=PIECES[pieceIdx];
+  document.documentElement.style.setProperty('--piece',p.color);
+  let mask='', wins='', pl='';
+  pills=[];
+  p.notes.forEach((c,i)=>{
+    const tonic=i===0;
+    const noff=f5(c.r);
+    mask+=`<path d="${sector(R.N[0],R.N[1],noff)}"/>`;
+    wins+=`<path class="win${tonic?' tonic':''}" d="${sector(R.N[0],R.N[1],noff)}"/>`;
+    const [nx,ny]=pt(LAY.N.rc,noff*30), py=ny+LAY.N.pill;
+    pl+=`<g class="pill${tonic?' tonic':''}" data-x="${nx}" data-y="${ny}"><text class="lab lab-N wname" data-n="${i}" x="${nx}" y="${ny+LAY.N.one}"></text><circle cx="${nx}" cy="${py}" r="${BIG?10.5:9}"/><text x="${nx}" y="${py}" style="font-size:${(c.lab.length>1?9:10.5)*(BIG?1.2:1)}px">${c.lab}</text></g>`;
+  });
+  p.chords.forEach((c,i)=>{
+    const tonic=c.n===0;
+    if(!c.cell) return;
+    const {ring,off}=c.cell;
+    mask+=`<path d="${sector(R[ring][0],R[ring][1],off)}"/>`;
+    wins+=`<path class="win${tonic?' tonic':''}" d="${sector(R[ring][0],R[ring][1],off)}"/>`;
+    const [x,y0]=pt(LAY[ring].rc,off*30), y=y0+LAY[ring].pill, w=10+c.num.length*(BIG?8.2:6.8), h=BIG?20:17;
+    pl+=`<g class="pill${tonic?' tonic':''}" data-x="${x}" data-y="${y0}"><text class="lab lab-${ring} wname" data-c="${i}" x="${x}" y="${y0+LAY[ring].one}"></text><rect x="${x-w/2}" y="${y-h/2}" width="${w}" height="${h}" rx="${h/2}"/><text x="${x}" y="${y}">${c.num}</text></g>`;
+  });
+  const [hx,hy]=pt(294,0),[ax,ay]=pt(303,-2.2),[bx,by]=pt(303,2.2);
+  $('maskCells').innerHTML=mask;
+  const g=$('pieceG');
+  g.innerHTML=`<circle class="rim" cx="${C}" cy="${C}" r="293.5"/><polygon class="handle" points="${hx},${hy} ${ax},${ay} ${bx},${by}"/>`+wins+`<g id="pills">${pl}</g>`;
+  pills=[...g.querySelectorAll('.pill')];
+  if(animate&&!reduce){g.classList.remove('swap');void g.getBBox();g.classList.add('swap');}
+  applyAngle(cur);
+}
+function applyAngle(a){
+  const t=`rotate(${a.toFixed(3)} ${C} ${C})`;
+  $('maskCells').setAttribute('transform',t);
+  $('pieceG').setAttribute('transform',t);
+  for(const el of pills) el.setAttribute('transform',`rotate(${(-a).toFixed(3)} ${el.dataset.x} ${el.dataset.y})`);
+  const pos=mod(Math.round(a/30),12);
+  if(pos!==lastPos){lastPos=pos;renderInfo();}
+}
+function animate(){
+  if(raf) return;
+  const step=()=>{
+    const d=target-cur;
+    if(Math.abs(d)<0.05||reduce){cur=target;applyAngle(cur);raf=null;return;}
+    cur+=d*0.2;applyAngle(cur);raf=requestAnimationFrame(step);
+  };
+  raf=requestAnimationFrame(step);
+}
+const tonicPc=()=>pcAt(mod(Math.round(cur/30),12));
+function setTonic(pc){
+  const pos=f5(pc), d=mod(pos*30-target+180,360)-180;
+  target+=d; animate();
+}
+function rotateBy(steps){target=Math.round(target/30)*30+steps*30;animate();}
+
+// ---------- panel ----------
+function renderPieces(){
+  $('pieces').innerHTML=PIECES.map((p,i)=>{
+    let th='';
+    for(let k=0;k<12;k++){for(const ring of ['N','M','m','d']) th+=`<path d="${sector(R[ring][0],R[ring][1],k)}" fill="none" stroke="var(--line)" stroke-width="6"/>`;}
+    p.notes.forEach((c,j)=>{th+=`<path d="${sector(R.N[0],R.N[1],f5(c.r))}" fill="${p.color}" fill-opacity="${j?0.55:1}"/>`;});
+    p.chords.forEach(c=>{if(c.cell) th+=`<path d="${sector(R[c.cell.ring][0],R[c.cell.ring][1],c.cell.off)}" fill="${p.color}" fill-opacity="${c.n?0.55:1}"/>`;});
+    return `<button class="piece" type="button" style="--c:${p.color}" aria-pressed="${i===pieceIdx}" data-i="${i}"><svg viewBox="0 0 600 600" aria-hidden="true">${th}</svg><div><b>${p.name}</b><span>${p.sub}</span></div></button>`;
+  }).join('');
+}
+function chordOf(notes,c){return nName(notes[c.n])+QS[c.q];}
+function renderInfo(){
+  const p=PIECES[pieceIdx], t=tonicPc(), notes=spell(t,p);
+  document.querySelectorAll('.wname').forEach(el=>{el.textContent=el.dataset.c!==undefined?chordOf(notes,p.chords[+el.dataset.c]):nName(notes[+el.dataset.n]);});
+  const tn=nName(notes[0]);
+  // hub
+  const tq=(p.chords.find(c=>c.n===0)||{q:'M'}).q, key=tn+(tq==='m'?'m':tq==='d'?'°':'');
+  $('hub').innerHTML=`<text class="hub-sub" x="${C}" y="${C-38}">TÓNICA</text><text class="hub-key" x="${C}" y="${C-4}" style="font-size:${(key.length>4?32:40)*(BIG?1.2:1)}px">${key}</text><text class="hub-mode" x="${C}" y="${C+32}">${p.mode}</text>`;
+  svg.setAttribute('aria-label',`Círculo de quintas. Pieza ${p.name} con tónica ${tn}.`);
+  // rotate buttons show destination
+  $('rotLName').textContent=nName(spell(mod(t+5,12),p)[0]);
+  $('rotRName').textContent=nName(spell(mod(t+7,12),p)[0]);
+  $('scaleTitle').textContent=`Escala · ${tn} ${p.mode}`;
+  $('notes').innerHTML=notes.map((n,i)=>`<div class="note${i?'':' tonic'}"><b>${nName(n)}</b><span>${p.notes[i].lab}</span></div>`).join('');
+  $('chords').innerHTML=p.chords.map((c,i)=>`<button type="button" class="chip${c.n?'':' tonic'}${c.cell?'':' off'}" data-pc="${notes[c.n].pc}" data-q="${c.q}" title="${c.cell?'Escuchar':'Acorde aumentado: no aparece en el círculo'}"><span class="num">${c.num}</span><span class="ch">${chordOf(notes,c)}</span>${c.cell?'':'<span class="tag">fuera del círculo</span>'}</button>`).join('');
+  $('pieceNote').textContent=p.note;
+  document.querySelectorAll('.piece').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.i===pieceIdx)));
+  renderProg();
+}
+
+// progression by degrees
+const TOK=/^(b|♭|#|♯)?(VII|VI|IV|V|III|II|I|vii|vi|iv|v|iii|ii|i)(°|o|dim|\+|aug)?(.*)$/;
+const ROMI={i:0,ii:1,iii:2,iv:3,v:4,vi:5,vii:6};
+const TRI={M:[0,4,7],m:[0,3,7],d:[0,3,6],A:[0,4,8]};
+function renderProg(){
+  const p=PIECES[pieceIdx], t=tonicPc(), notes=spell(t,p,true);
+  const inScale=new Set(p.iv.map(x=>mod(t+x,12))), tag=p.iv.length===7?'prestado':'fuera de la escala';
+  const toks=$('progIn').value.trim().split(/[\s,|–—-]+/).filter(Boolean);
+  if(!toks.length){$('progOut').innerHTML='<span class="err">Escribe grados separados por espacios, por ejemplo: I V vi IV</span>';return;}
+  $('progOut').innerHTML=toks.map(tok=>{
+    const m=tok.match(TOK);
+    if(!m) return `<span class="chip off" title="No reconozco este grado"><span class="num">${tok}</span><span class="ch">?</span></span>`;
+    const [,accS,rom,qs,rest]=m, d=ROMI[rom.toLowerCase()];
+    const upper=rom===rom.toUpperCase();
+    let q=upper?'M':'m'; if(qs){q=/\+|aug/.test(qs)?'A':'d';}
+    let root, name;
+    if(accS){
+      const acc=/b|♭/.test(accS)?-1:1;
+      root=mod(t+MAJ[d]+acc,12);
+      const li=LET.indexOf(notes[d].L); const a=mod(root-NAT[li]+6,12)-6;
+      name=letter(notes[d].L)+accStr(a);
+    } else { root=notes[d].pc; name=nName(notes[d]); }
+    const diat=TRI[q].every(i=>inScale.has(mod(root+i,12)));
+    const label=name+QS[q]+rest;
+    return `<button type="button" class="chip${diat?'':' off'}" data-pc="${root}" data-q="${q}" title="${diat?'Todas sus notas están en la escala':'Tiene notas fuera de esta escala'}"><span class="num">${tok}</span><span class="ch">${label}</span>${diat?'':`<span class="tag">${tag}</span>`}</button>`;
+  }).join('');
+}
+const EXAMPLES=['I V vi IV','ii V I','I vi IV V','I IV V I','vi IV I V','i iv V i','I ♭VII IV I'];
+$('examples').innerHTML=EXAMPLES.map(e=>`<button type="button">${e}</button>`).join('');
+$('examples').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$('progIn').value=b.textContent;renderProg();});
+$('progIn').addEventListener('input',()=>renderProg());
+
+// audio
+let ac=null;
+function play(pc,q){
+  try{
+    ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+    if(ac.state==='suspended') ac.resume();
+    const ints={M:[0,4,7],m:[0,3,7],d:[0,3,6],A:[0,4,8]}[q]||[0,4,7];
+    const bass=40+mod(pc-4,12), top=55+mod(pc-7,12);
+    const midis=[bass,...ints.map(i=>top+i)];
+    const now=ac.currentTime, out=ac.createGain(); out.gain.value=0.22; out.connect(ac.destination);
+    midis.forEach((m,i)=>{
+      const o=ac.createOscillator(), g=ac.createGain();
+      o.type=i?'triangle':'sine'; o.frequency.value=440*Math.pow(2,(m-69)/12);
+      g.gain.setValueAtTime(0,now+i*0.018); g.gain.linearRampToValueAtTime(i?0.5:0.8,now+i*0.018+0.015);
+      g.gain.exponentialRampToValueAtTime(0.001,now+1.8);
+      o.connect(g); g.connect(out); o.start(now+i*0.018); o.stop(now+1.9);
+    });
+  }catch(e){}
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.chip[data-pc]'); if(b) play(+b.dataset.pc,b.dataset.q);
+  const pb=e.target.closest('.piece'); if(pb){pieceIdx=+pb.dataset.i;store.set('rq-piece',PIECES[pieceIdx].id);renderPiece(true);renderInfo();}
+});
+
+// controls
+$('rotL').onclick=()=>rotateBy(-1);
+$('rotR').onclick=()=>rotateBy(1);
+const targetPc=()=>pcAt(mod(Math.round(target/30),12));
+$('semiUp').onclick=()=>setTonic(targetPc()+1);
+$('semiDown').onclick=()=>setTonic(targetPc()-1);
+document.addEventListener('keydown',e=>{
+  if(e.target.closest('input')) return;
+  if(e.key==='ArrowRight'){rotateBy(1);e.preventDefault();}
+  if(e.key==='ArrowLeft'){rotateBy(-1);e.preventDefault();}
+});
+function setNotation(n){
+  notation=n;store.set('rq-notation',n);
+  $('nSol').setAttribute('aria-pressed',String(n==='sol'));$('nAbc').setAttribute('aria-pressed',String(n==='abc'));
+  renderStatic();renderInfo();
+}
+$('nSol').onclick=()=>setNotation('sol');$('nAbc').onclick=()=>setNotation('abc');
+
+// drag to rotate / tap to set tonic
+function svgPoint(e){const m=svg.getScreenCTM().inverse();const p=new DOMPoint(e.clientX,e.clientY).matrixTransform(m);return [p.x-C,p.y-C];}
+const angOf=([x,y])=>mod(Math.atan2(x,-y)*180/Math.PI,360);
+let drag=null;
+svg.addEventListener('pointerdown',e=>{
+  const v=svgPoint(e), r=Math.hypot(v[0],v[1]);
+  if(r<HUB||r>300) return;
+  drag={id:e.pointerId,last:angOf(v),acc:0,start:cur,moved:false,r,v};
+  svg.setPointerCapture(e.pointerId);
+  if(raf){cancelAnimationFrame(raf);raf=null;}
+});
+svg.addEventListener('pointermove',e=>{
+  if(!drag||e.pointerId!==drag.id) return;
+  const a=angOf(svgPoint(e)); drag.acc+=mod(a-drag.last+180,360)-180; drag.last=a;
+  if(Math.abs(drag.acc)>4){drag.moved=true;svg.classList.add('dragging');}
+  if(drag.moved){cur=drag.start+drag.acc;target=cur;applyAngle(cur);}
+});
+function endDrag(e){
+  if(!drag||e.pointerId!==drag.id) return;
+  svg.classList.remove('dragging');
+  if(drag.moved){target=Math.round(cur/30)*30;animate();}
+  else{
+    const k=mod(Math.round(angOf(drag.v)/30),12), r=drag.r;
+    let pc=null;
+    if(r>=R.N[0]) pc=pcAt(k); else if(r>=R.M[0]) pc=pcAt(k); else if(r>=R.m[0]) pc=pcAt(k)+9; else if(r>=R.d[0]) pc=pcAt(k)+11;
+    if(pc!==null) setTonic(pc);
+  }
+  drag=null;
+}
+svg.addEventListener('pointerup',endDrag);
+svg.addEventListener('pointercancel',endDrag);
+
+// boot
+$('nSol').setAttribute('aria-pressed',String(notation==='sol'));$('nAbc').setAttribute('aria-pressed',String(notation==='abc'));
+renderStatic();renderPieces();renderPiece(false);renderInfo();
+})();
+</script>
+</body>
+</html>
